@@ -1,0 +1,101 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Han Zhao"
+date: "5/9/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+The goal of your project is to predict the manner in which 6 participants did the exercise.The machine learning algorithm described here is applied to the 20 test cases in the test data.
+
+## Load data sets
+```{r}
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+                    na.strings = c("NA","#DIV/0!",""))
+testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+                    na.strings = c("NA","#DIV/0!",""))
+```
+
+## Clean training data set and remove invalid predictors
+```{r}
+library(caret)
+# Remove columns with Near Zero Values
+training_clean <- training[ , names(training)[!(nzv(training, saveMetrics = T)[, 4])]]
+# Remove columns is empty
+training_clean <- training_clean[, names(training_clean)[sapply(training_clean, function(x)!(any(is.na(x)|x=="")))]]
+# Remove Col 1 (X) and Col 5 (cvtd_timestamp)
+training_clean <- training_clean[, -c(1,5)]
+```
+
+## Separate Training data set for Cross Validation
+```{r}
+set.seed(1234)
+inTrain <- createDataPartition(training_clean$classe, p = 0.7, list = F)
+train <- training_clean[inTrain, ]
+valid <- training_clean[-inTrain, ]
+```
+
+## Prediction Model
+Using the test data set and random forest method to create a prediction model.
+```{r}
+controlRF <- trainControl(method="cv", number=3, verboseIter = F)
+fit <- train(classe ~., method = "rf", data = train, trControl=controlRF)
+```
+
+## Assuracy of the Prediction Model
+Using the train data to create a prediction.
+```{r}
+predTrain <- predict(fit, train)
+```
+Measure its accuracy
+```{r}
+rfMatrix <- confusionMatrix(predTrain, train$classe)
+```
+
+Plot the matrix
+```{r}
+plot(rfMatrix$table, col = rfMatrix$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  rfMatrix$overall['Accuracy']))
+```
+
+## Cross Validation
+Using the validation subset and create a prediction.
+```{r}
+predValid <- predict(fit, valid)
+```
+Measure its accurancy
+```{r}
+rfMatrix <- confusionMatrix(predValid, valid$classe)
+```
+Plot the Matrix
+```{r}
+plot(rfMatrix$table, col = rfMatrix$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  rfMatrix$overall['Accuracy']))
+```
+
+From the validation subset, the accuracy is very high, at above 99%. 
+
+## Final Model
+Given the level of accuracy, we will use the model above constructed by the random forest method for the prediction.
+The following is the final model:
+```{r}
+fit$finalModel
+```
+The following is the list of important predictors of the model
+```{r}
+varImp(fit)
+```
+
+## Application of the prediction model on test data set
+```{r}
+predict(fit, testing)
+```
+
+
+
